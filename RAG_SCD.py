@@ -68,25 +68,81 @@ Answer:"""
     except Exception as e:
         return f"Error calling DeepSeek: {str(e)}"
  
+def understand_question(question):
+    """Use DeepSeek to understand what the question is really asking"""
+    url = "https://api.deepseek.com/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+    }
+
+    prompt = f"""Analyze this question and extract key concepts and related terms that might appear in documentation.
+Question: {question}
+
+Provide 3-4 alternative ways to phrase this question or related search terms. Return them as a simple list."""
+
+    data = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "stream": False,
+        "temperature": 0.3
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+        if response.status_code == 200:
+            result = response.json()
+            return result['choices'][0]['message']['content']
+        else:
+            return question
+    except:
+        return question
+
 # Example of how to use the system:
 def answer_question(question):
-	"""Ask a question about your PDF document"""
-	# Search for relevant chunks in the database
-	relevant_docs = db_chroma.similarity_search(question, k=3)
+    """Ask a question about your PDF document with smart understanding"""
+    
+    # Step 1: Understand the question and get related terms
+    print(f"\n🔍 Understanding your question...")
+    related_terms = understand_question(question)
+    print(f"Related search terms found:\n{related_terms}")
+    
+    # Step 2: Search with multiple query variations
+    print(f"\n📚 Searching document...")
+    search_queries = [question] + related_terms.split('\n')
+    
+    all_docs = []
+    for query in search_queries:
+        if query.strip():
+            docs = db_chroma.similarity_search(query.strip(), k=3)
+            all_docs.extend(docs)
+    
+    # Step 3: Remove duplicates while keeping best matches
+    seen = set()
+    relevant_docs = []
+    for doc in all_docs:
+        doc_hash = hash(doc.page_content)
+        if doc_hash not in seen:
+            seen.add(doc_hash)
+            relevant_docs.append(doc)
+    
+    relevant_docs = relevant_docs[:6]  # Keep top 6 unique results
+    
+    # Step 4: Combine context and get answer
+    context = "\n\n".join([doc.page_content for doc in relevant_docs])
+    
+    print(f"\n💡 Generating answer...")
+    answer = query_deepseek(question, context)
 
-	# Combine the context from relevant documents
-	context = "\n\n".join([doc.page_content for doc in relevant_docs])
+    print(f"\nQuestion: {question}")
+    print(f"Answer: {answer}")
+    print(f"Sources found: {len(relevant_docs)}")
 
-	# Get answer from DeepSeek
-	answer = query_deepseek(question, context)
-
-	print(f"\nQuestion: {question}")
-	print(f"Answer: {answer}")
-	print(f"Sources found: {len(relevant_docs)}")
-
-	return answer
+    return answer
 
 if __name__ == "__main__":
     # Simple test call
-    question = "How to sort fields in Extraction Definition?"
+    question = "How do I view my SQL codes behind my Extraction Definition?"
     answer_question(question)
