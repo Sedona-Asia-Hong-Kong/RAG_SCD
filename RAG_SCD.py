@@ -7,12 +7,34 @@ from langchain.vectorstores import Chroma
  
 # DeepSeek API configuration
 DEEPSEEK_API_KEY = "sk-7559c296c39c4cd6bba910a6e7c5c0d0"  # Replace with your actual DeepSeek key
-DOC_PATH = "Data Extractor.pdf"
+# DOC_PATH = "Data Extractor.pdf"  # path to a single PDF document
 CHROMA_PATH = "db_name"
- 
+
+PDF_DIR = "data_pdf"  # folder containing multiple PDFs
+CHROMA_PATH = "db_name"
+
+def load_all_pdfs(pdf_paths):
+    all_docs = []
+    for path in pdf_paths:
+        loader = PyPDFLoader(path)
+        docs = loader.load()
+        # tag each page with source file name
+        for d in docs:
+            d.metadata["source_file"] = os.path.basename(path)
+        all_docs.extend(docs)
+    return all_docs
+
+# discover all pdfs (or pass explicit list)
+pdf_files = [
+    os.path.join(PDF_DIR, f)
+    for f in os.listdir(PDF_DIR)
+    if f.lower().endswith(".pdf")
+]
+
 # Load your pdf doc
-loader = PyPDFLoader(DOC_PATH)
-pages = loader.load()
+# loader = PyPDFLoader(DOC_PATH)
+# pages = loader.load()
+pages = load_all_pdfs(pdf_files)
  
 # Split the doc into smaller chunks i.e. chunk_size=500
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=150)
@@ -163,33 +185,47 @@ def _embedding_page_candidates(question, top_k=20):
             pages_found.append(pnum)
     return pages_found
 
-def retrieve_candidates_by_page(question, lexical_top=3, embed_top=12, neighbor_radius=1):
+def retrieve_candidates_by_page(question, allowed_sources=None, lexical_top=3, embed_top=12, neighbor_radius=1):
     """Combine lexical and embedding signals to produce a prioritized list of chunks (documents).
     Returns a list of docs ordered by priority."""
     # 1) lexical signals
     lexical_pages = _lexical_page_scores(question, top_n=lexical_top)
 
-    # 2) embedding signals
+	# 2) embedding candidates with optional metadata filter
+    try:
+        if allowed_sources:
+            # metadata filter on Chroma
+            results = db_chroma.similarity_search_with_score(
+                question, k=embed_top,
+                filter={"source_file": {"$in": list(allowed_sources)}}
+            )
+        else:
+            results = db_chroma.similarity_search_with_score(question, k=embed_top)
+    except Exception:
+        docs = db_chroma.similarity_search(question, k=embed_top)
+        results = [(d, 999.0) for d in docs]
+
+    # 3) embedding signals
     embed_pages = _embedding_page_candidates(question, top_k=embed_top)
 
-    # 3) combine and prioritize: lexical pages first (they are 'obvious'), then embedding pages
+    # 4) combine and prioritize: lexical pages first (they are 'obvious'), then embedding pages
     combined_pages = []
     for p in lexical_pages + embed_pages:
         if p not in combined_pages:
             combined_pages.append(p)
 
-    # 4) if still empty, fall back to top embedding pages
+    # 5) if still empty, fall back to top embedding pages
     if not combined_pages:
         combined_pages = embed_pages[:3]
 
-    # 5) expand with neighbors (to capture context spanning chunk boundaries)
+    # 6) expand with neighbors (to capture context spanning chunk boundaries)
     expanded_pages = []
     for p in combined_pages:
         for n in range(p - neighbor_radius, p + neighbor_radius + 1):
             if n > 0 and n not in expanded_pages:
                 expanded_pages.append(n)
 
-    # 6) collect chunk docs that belong to these pages (preserve the expanded_pages ordering)
+    # 7) collect chunk docs that belong to these pages (preserve the expanded_pages ordering)
     page_to_docs = {}
     for doc in chunks:
         pnum = _page_number_of_doc(doc)
@@ -210,7 +246,7 @@ def retrieve_candidates_by_page(question, lexical_top=3, embed_top=12, neighbor_
         if len(result_docs) >= 20:
             break
 
-    # 7) If still no docs, fall back to top embedding docs (no page grouping)
+    # 8) If still no docs, fall back to top embedding docs (no page grouping)
     if not result_docs:
         try:
             embs = db_chroma.similarity_search(question, k=6)
@@ -225,14 +261,19 @@ def retrieve_candidates_by_page(question, lexical_top=3, embed_top=12, neighbor_
     return result_docs
 
 # Replace the body of answer_question to use retrieve_candidates_by_page
-def answer_question(question):
+def answer_question(question, pdf_paths=None):
     """Ask a question about your PDF document with smart understanding"""
     print(f"\n🔍 Understanding your question...")
     related_terms = understand_question(question)
     print(f"Related search terms found:\n{related_terms}")
+    
+    allowed_sources = None
+    if pdf_paths:
+        # normalize to base names since metadata stored base name
+        allowed_sources = {os.path.basename(p) for p in pdf_paths}
 
     print(f"\n📚 Retrieving candidate pages (lexical + embedding)...")
-    candidate_docs = retrieve_candidates_by_page(question, lexical_top=3, embed_top=20, neighbor_radius=1)
+    candidate_docs = retrieve_candidates_by_page(question, allowed_sources=allowed_sources, lexical_top=3, embed_top=20, neighbor_radius=1)
 
     # Build labeled context so DeepSeek can cite and synthesize across chunks
     chunks_text = []
@@ -271,5 +312,5 @@ def answer_question(question):
 
 if __name__ == "__main__":
     # Simple test call
-    question = "How do I link my extracted results to Communicaiton Server?"
-    answer_question(question)
+    question = "How do I link my extracted results to Communication Server?"
+    answer_question(question, pdf_paths=["Data Extractor.pdf"])
