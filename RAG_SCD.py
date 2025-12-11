@@ -1,9 +1,9 @@
 import os
 import requests
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import HuggingFaceEmbeddings  # Free local embeddings
-from langchain.vectorstores import Chroma
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_huggingface import HuggingFaceEmbeddings  # Free local embeddings
+from langchain_community.vectorstores import Chroma
  
 # DeepSeek API configuration
 DEEPSEEK_API_KEY = "sk-7559c296c39c4cd6bba910a6e7c5c0d0"  # Replace with your actual DeepSeek key
