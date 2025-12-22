@@ -4,9 +4,13 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings  # Free local embeddings
 from langchain_community.vectorstores import Chroma
- 
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 # DeepSeek API configuration
-DEEPSEEK_API_KEY = "sk-7559c296c39c4cd6bba910a6e7c5c0d0"  # Replace with your actual DeepSeek key
+API_KEY = os.getenv("API_KEY")  # Replace with your actual DeepSeek key
 # DOC_PATH = "Data Extractor.pdf"  # path to a single PDF document
 CHROMA_PATH = "chromadb"
 
@@ -67,7 +71,7 @@ Answer:"""
     url = "https://api.deepseek.com/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+        "Authorization": f"Bearer {API_KEY}"
     }
 
     data = {
@@ -95,7 +99,7 @@ def understand_question(question):
     url = "https://api.deepseek.com/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+        "Authorization": f"Bearer {API_KEY}"
     }
 
     prompt = f"""Analyze this question and extract key concepts and related terms that might appear in documentation.
