@@ -8,10 +8,10 @@ from langchain_community.vectorstores import Chroma
 # DeepSeek API configuration
 DEEPSEEK_API_KEY = "sk-7559c296c39c4cd6bba910a6e7c5c0d0"  # Replace with your actual DeepSeek key
 # DOC_PATH = "Data Extractor.pdf"  # path to a single PDF document
-CHROMA_PATH = "db_name"
+CHROMA_PATH = "chromadb"
 
 PDF_DIR = "data_pdf"  # folder containing multiple PDFs
-CHROMA_PATH = "db_name"
+CHROMA_PATH = "chromadb"
 
 def load_all_pdfs(pdf_paths):
     all_docs = []
