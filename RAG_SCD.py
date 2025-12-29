@@ -12,10 +12,9 @@ load_dotenv()
 # DeepSeek API configuration
 API_KEY = os.getenv("API_KEY")  # Replace with your actual DeepSeek key
 # DOC_PATH = "Data Extractor.pdf"  # path to a single PDF document
-CHROMA_PATH = "chromadb"
 
 PDF_DIR = "data_pdf"  # folder containing multiple PDFs
-CHROMA_PATH = "chromadb"
+CHROMA_PATH = "vector_db"
 
 def load_all_pdfs(pdf_paths):
     all_docs = []
